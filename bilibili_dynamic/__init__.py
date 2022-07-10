@@ -30,22 +30,26 @@ def get_all_dynamics_by_dynamic_url(dynamic_url: str) -> list:
     dynamics: list[Any] = []  # 存放所有的动态
     mid = dynamic_url.split("/")[-2]  # 获取mid
     offset: str = ''  # 偏移量，第一次为空，之后在循环中获得
-    # 开始循环，访问所有的动态
-    while True:
-        resp = requests.get(
-            f'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?offset={offset}&host_mid={mid}&timezone_offset=-480',
-            headers=get_dynamic_data_headers(dynamic_url))
-        json_data = resp.json()  # 获取json数据
-        resp.close()  # 关闭连接
-        offset = json_data['data']['offset']  # 下个数据的偏移量,不为空获取下一页，为空跳出循环，完成函数
-        items = json_data['data']['items']  # 当前页面所有的动态的信息
-        print(f'获取到{len(items)}个动态')
-        for item in items:
-            dynamics.append(item)
-        if offset.strip() == '':
-            return dynamics
-        else:
-            time.sleep(1)  # 暂停1s
+    try:
+        # 开始循环，访问所有的动态
+        while True:
+            resp = requests.get(
+                f'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?offset={offset}&host_mid={mid}&timezone_offset=-480',
+                headers=get_dynamic_data_headers(dynamic_url))
+            json_data = resp.json()  # 获取json数据
+            resp.close()  # 关闭连接
+            offset = json_data['data']['offset']  # 下个数据的偏移量,不为空获取下一页，为空跳出循环，完成函数
+            items = json_data['data']['items']  # 当前页面所有的动态的信息
+            print(f'获取到{len(items)}个动态')
+            for item in items:
+                dynamics.append(item)
+            if offset.strip() == '':
+                print(f'供获取{len(dynamics)}个动态')
+                return dynamics
+            else:
+                time.sleep(0.1)  # 暂停1s
+    except TimeoutError:
+        return dynamics
 
 
 # 已测试
@@ -115,10 +119,12 @@ def get_dynamics_image_urls_from_dynamic_items(items: list) -> list[str]:
     # 提取所有图片的链接
     images_urls = []
     image_items = get_all_image_dynamics_from_dynamics_list(items)
+
     for item in image_items:
         images = item['modules']['module_dynamic']['major']['draw']['items']
         for image in images:
             images_urls.append(image['src'])
+    print(f'共获取{len(images_urls)}条链接')
     return images_urls
 
 

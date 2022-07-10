@@ -4,8 +4,6 @@ import asyncio
 import aiofiles
 import os
 
-
-
 HEADERS: dict[str, str] = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
 }
@@ -44,7 +42,7 @@ def download_images(urls: list[str], headers: dict = HEADERS, path: str = './res
     :return: 执行结果
     """
     # 消除windows特有问题:RuntimeError: Event loop is closed
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     try:
         if len(urls) == 0:  # 检测是否有链接
             return True
@@ -54,7 +52,7 @@ def download_images(urls: list[str], headers: dict = HEADERS, path: str = './res
         if not os.path.exists(path):
             os.makedirs(path)
         # 开始下载，执行协程任务
-        asyncio.run(__download_images_async_task(urls, path, headers))
+        asyncio.get_event_loop().run_until_complete(__download_images_async_task(urls, path, headers))
         return True
     except BaseException as err:
         print(err)
@@ -70,33 +68,36 @@ async def __download_images_async_task(urls: list[str], path: str, headers: dict
     :param urls: 图片链接列表
     :return: None
     """
-    async with aiohttp.ClientSession() as session:
-        tasks = set()
-        for url in urls:
-            tasks.add(asyncio.create_task(__download_images_async_fun(url, path, headers, session)))
-        await asyncio.wait(tasks)
+    tasks = []
+    for url in urls:
+        tasks.append(asyncio.create_task(__download_images_async_fun(url, path, headers, asyncio.Semaphore(10))))
+    await asyncio.wait(tasks)
 
 
-async def __download_images_async_fun(url, path, headers, session):
+async def __download_images_async_fun(url, path, headers, semaphore):
     """
     真正执行下载的协程函数
 
-    :param session: aiohttp.ClientSession
+
+    :type semaphore: asyncio.Semaphore(n) 限制并发数
     :param headers: 请求头
     :param url: 链接
     :param path: 存放路径
     :return: None
     """
-    async with session.get(url, headers=headers) as resp:
-        async with aiofiles.open(path + '/' + url.split('/')[-1], 'wb') as f:
-            await f.write(await resp.content.read())
-            print(f'下载{url}成功')
-            await asyncio.sleep(1)  # 等待1s
+    try:
+        async with semaphore:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as resp:
+                    async with aiofiles.open(path + '/' + url.strip().split('/')[-1], 'wb') as f:
+                        await f.write(await resp.content.read())
+                        print(f'下载{url}成功')
+    except Exception:
+        async with aiofiles.open(path + '/' + 'log.txt', 'a') as log:
+            await log.write(f'{url}\n')
 
 
 if __name__ == '__main__':
     print(download_images(['https://i0.hdslb.com/bfs/new_dyn/dc4197525a7297ba86170da74a07c947413023694.png',
                            'https://i0.hdslb.com/bfs/new_dyn/d4e353a82418f9fe209c96973bffacd7413023694.jpg',
                            'https://i0.hdslb.com/bfs/new_dyn/5a8c9b2e97fb859c940bb4063f3d4af2413023694.jpg']))
-
-
