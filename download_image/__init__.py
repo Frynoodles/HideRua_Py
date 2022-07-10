@@ -1,3 +1,5 @@
+import time
+
 import requests
 import aiohttp
 import asyncio
@@ -52,7 +54,16 @@ def download_images(urls: list[str], headers: dict = HEADERS, path: str = './res
         if not os.path.exists(path):
             os.makedirs(path)
         # 开始下载，执行协程任务
-        asyncio.get_event_loop().run_until_complete(__download_images_async_task(urls, path, headers))
+        # 提供的协程锁没用我就只好自己加锁了
+        u = []
+        for i, url in enumerate(urls):
+            if i % 50 == 0 and i != 0:
+                print(f'执行一次协程任务，数量{len(u)}')
+                asyncio.get_event_loop().run_until_complete(__download_images_async_task(u, path, headers))
+                u.clear()
+            else:
+                u.append(url)
+            time.sleep(2)  # 总之先睡两秒吧
         return True
     except BaseException as err:
         print(err)
@@ -70,11 +81,11 @@ async def __download_images_async_task(urls: list[str], path: str, headers: dict
     """
     tasks = []
     for url in urls:
-        tasks.append(asyncio.create_task(__download_images_async_fun(url, path, headers, asyncio.Semaphore(10))))
+        tasks.append(asyncio.create_task(__download_images_async_fun(url, path, headers)))
     await asyncio.wait(tasks)
 
 
-async def __download_images_async_fun(url, path, headers, semaphore):
+async def __download_images_async_fun(url, path, headers):
     """
     真正执行下载的协程函数
 
@@ -85,19 +96,21 @@ async def __download_images_async_fun(url, path, headers, semaphore):
     :param path: 存放路径
     :return: None
     """
-    try:
-        async with semaphore:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as resp:
-                    async with aiofiles.open(path + '/' + url.strip().split('/')[-1], 'wb') as f:
-                        await f.write(await resp.content.read())
-                        print(f'下载{url}成功')
-    except Exception:
-        async with aiofiles.open(path + '/' + 'log.txt', 'a') as log:
-            await log.write(f'{url}\n')
+    # try:
+    async with aiohttp.ClientSession() as session:
+        print(url)
+        async with session.get(url, headers=headers) as resp:
+            async with aiofiles.open(path + '/' + url.strip().split('/')[-1], 'wb') as f:
+                await f.write(await resp.content.read())
+                print(f'下载{url}成功')
+    await asyncio.sleep(1)
+# except Exception:
+#     async with aiofiles.open(path + '/' + 'log.txt', 'a') as log:
+#         await log.write(f'{url}')
 
 
 if __name__ == '__main__':
-    print(download_images(['https://i0.hdslb.com/bfs/new_dyn/dc4197525a7297ba86170da74a07c947413023694.png',
-                           'https://i0.hdslb.com/bfs/new_dyn/d4e353a82418f9fe209c96973bffacd7413023694.jpg',
-                           'https://i0.hdslb.com/bfs/new_dyn/5a8c9b2e97fb859c940bb4063f3d4af2413023694.jpg']))
+    # print(download_images(['https://i0.hdslb.com/bfs/new_dyn/dc4197525a7297ba86170da74a07c947413023694.png',
+    #                        'https://i0.hdslb.com/bfs/new_dyn/d4e353a82418f9fe209c96973bffacd7413023694.jpg',
+    #                        'https://i0.hdslb.com/bfs/new_dyn/5a8c9b2e97fb859c940bb4063f3d4af2413023694.jpg']))
+    download_image('https://i0.hdslb.com/bfs/new_dyn/673027a762a1dec347939f127b8cff5f413023694.jpg')
