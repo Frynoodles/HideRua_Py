@@ -63,6 +63,7 @@ def download_images(urls: list[str], headers: dict = HEADERS, path: str = './res
                 u.clear()
             else:
                 u.append(url)
+            print('总之先休眠2s')
             time.sleep(2)  # 总之先睡两秒吧
         return True
     except BaseException as err:
@@ -90,7 +91,7 @@ async def __download_images_async_fun(url, path, headers):
     真正执行下载的协程函数
 
 
-    :type semaphore: asyncio.Semaphore(n) 限制并发数
+
     :param headers: 请求头
     :param url: 链接
     :param path: 存放路径
@@ -103,7 +104,7 @@ async def __download_images_async_fun(url, path, headers):
             async with aiofiles.open(path + '/' + url.strip().split('/')[-1], 'wb') as f:
                 await f.write(await resp.content.read())
                 print(f'下载{url}成功')
-    await asyncio.sleep(1)
+
 # except Exception:
 #     async with aiofiles.open(path + '/' + 'log.txt', 'a') as log:
 #         await log.write(f'{url}')
